@@ -1,0 +1,14 @@
+# Bỏ qua các file biên dịch/tạm của Arduino
+*.hex
+*.bin
+*.elf
+build/
+
+# Bỏ qua file rác của VS Code / PlatformIO
+.pio/
+.vscode/
+.idea/
+
+# Bỏ qua file rác hệ thống Windows/Mac
+Thumbs.db
+.DS_Store
