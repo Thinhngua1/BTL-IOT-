@@ -10,7 +10,7 @@ constexpr uint8_t MODBUS_RX_PIN = 16;   // Nối vào chân RXD/RO của mạch 
 constexpr uint8_t MODBUS_TX_PIN = 17;   // Nối vào chân TXD/DI của mạch MAX485
 
 uint8_t  plcSlaveId   = 2;              // Slave ID đang đặt trên PLC
-uint32_t modbusBaud   = 19200;          // Mặc định hãng Xinje: 19200
+uint32_t modbusBaud   = 2400;           // Đặt mặc định 2400 bps (mức thấp nhất trên XDPPro)
 uint32_t modbusConfig = SERIAL_8E1;     // Mặc định hãng Xinje: Even Parity (8E1)
 
 // ============================================================================
@@ -46,9 +46,11 @@ constexpr unsigned long POLL_INTERVAL_MS = 1000; // Chu kỳ đọc 1000ms
 // Chờ 1ms (1000us) cho byte tự vọng cuối cùng (0xFF) dịch xong vào FIFO rồi xóa sạch
 // (Trên PLC cài Send Delay Time = 3ms nên chờ 1ms hoàn toàn không làm mất byte nào của PLC)
 void postTransmissionCallback() {
-  delayMicroseconds(1000);
-  while (Serial2.available()) {
-    Serial2.read();
+  // Chờ đúng 2.0 ký tự theo Baudrate hiện tại (luôn < 3.5 ký tự chuẩn Modbus RTU + 3ms trễ PLC)
+  uint32_t echoWaitUs = (22UL * 1000000UL) / modbusBaud;
+  unsigned long te = micros();
+  while (micros() - te < echoWaitUs) {
+    if (Serial2.available()) Serial2.read();
   }
 }
 
@@ -102,12 +104,19 @@ void debugRawModbusReadD100(uint8_t testSlaveId) {
   Serial2.write(frame, 8);
   Serial2.flush();
 
-  // Đợi 1ms cho byte tự vọng cuối cùng (FF) vào hết bộ đệm rồi xóa sạch
-  delayMicroseconds(1000);
-  while (Serial2.available()) Serial2.read();
+  // In ra echo (chờ đúng 2.0 ký tự theo Baudrate hiện tại)
+  Serial.print("  ECHO: ");
+  uint32_t echoWaitUs = (22UL * 1000000UL) / modbusBaud;
+  unsigned long te = micros();
+  while (micros() - te < echoWaitUs) {
+    if (Serial2.available()) {
+      Serial.printf("%02X ", Serial2.read());
+    }
+  }
+  Serial.println();
 
-  // Chờ 100ms cho PLC phản hồi thật sự
-  delay(100);
+  // Chờ PLC phản hồi thật sự (tự động tăng thời gian chờ ở Baudrate thấp)
+  delay(modbusBaud < 1200 ? 450 : 180);
 
   int count = Serial2.available();
   Serial.printf("  [RAW TEST ID=%u] TX: %02X %02X %02X %02X %02X %02X %02X %02X -> RX that (%d bytes): ",
@@ -121,15 +130,18 @@ void debugRawModbusReadD100(uint8_t testSlaveId) {
   Serial.println();
 }
 
-// Hàm tự động quét tìm thông số PLC (Baudrate, Parity, Slave ID)
+// Hàm tự động quét tìm thông số PLC (Baudrate từ thấp đến cao, Parity, Slave ID)
 void autoScanPLC() {
   Serial.println("\n================ BAT DAU DO TIM CAU HINH PLC ================");
-  const uint32_t bauds[]   = {19200, 9600, 38400, 115200};
+  const uint32_t bauds[]   = {1200, 2400, 4800, 9600, 600, 300, 19200};
   const uint32_t configs[] = {SERIAL_8E1, SERIAL_8N1, SERIAL_8O1};
   const char* configNames[] = {"8E1 (Even)", "8N1 (None)", "8O1 (Odd)"};
-  const uint8_t ids[]      = {1, 2};
+  const uint8_t ids[]      = {2, 1};
 
-  for (uint8_t bIdx = 0; bIdx < 4; bIdx++) {
+  uint32_t savedBaud = modbusBaud;
+
+  for (uint8_t bIdx = 0; bIdx < 7; bIdx++) {
+    modbusBaud = bauds[bIdx];
     for (uint8_t cIdx = 0; cIdx < 3; cIdx++) {
       Serial2.end();
       delay(20);
@@ -161,13 +173,14 @@ void autoScanPLC() {
     }
   }
 
-  // Khôi phục lại cấu hình mặc định nếu chưa tìm thấy
+  // Khôi phục lại cấu hình hiện tại nếu chưa tìm thấy
+  modbusBaud = savedBaud;
   Serial2.end();
   Serial2.begin(modbusBaud, modbusConfig, MODBUS_RX_PIN, MODBUS_TX_PIN);
   gpio_pullup_en((gpio_num_t)MODBUS_RX_PIN);
   node.begin(plcSlaveId, Serial2);
   node.postTransmission(postTransmissionCallback);
-  Serial.println("-> Chua tim thay phan hoi tu PLC. Quay ve Baud=19200, 8E1, ID=2");
+  Serial.printf("-> Chua tim thay phan hoi tu PLC. Quay ve Baud=%u, 8E1, ID=%u\n", modbusBaud, plcSlaveId);
   Serial.println("=============================================================\n");
 }
 
@@ -276,8 +289,26 @@ void handleSerialCommands() {
       }
       break;
     }
+    case 'b': { // Đổi nhanh Baudrate (VD: gõ b1200, b2400, b300)
+      String bStr = input.substring(1);
+      bStr.trim();
+      uint32_t newBaud = (uint32_t)bStr.toInt();
+      if (newBaud >= 300 && newBaud <= 115200) {
+        modbusBaud = newBaud;
+        Serial2.end();
+        delay(20);
+        Serial2.begin(modbusBaud, modbusConfig, MODBUS_RX_PIN, MODBUS_TX_PIN);
+        gpio_pullup_en((gpio_num_t)MODBUS_RX_PIN);
+        node.begin(plcSlaveId, Serial2);
+        node.postTransmission(postTransmissionCallback);
+        Serial.printf("[CONFIG] Da doi Baudrate ESP32 sang %u bps (8E1, ID=%u)\n", modbusBaud, plcSlaveId);
+      } else {
+        Serial.println("[WARN] Baudrate khong hop le (VD: go 'b1200', 'b2400', 'b300')");
+      }
+      break;
+    }
     default:
-      Serial.println("[HELP] Lenh: 'a' (Do tim PLC) | 's' (Start) | 'p' (Stop) | 'r' (Reset) | 't500' (Set D200)");
+      Serial.println("[HELP] Lenh: 'a' (Do tim PLC) | 'b1200' (Doi Baud) | 's' (Start) | 'p' (Stop) | 'r' (Reset) | 't500' (Set D200)");
       break;
   }
 }
