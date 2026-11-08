@@ -11,4 +11,8 @@ build/
 
 # Bỏ qua file rác hệ thống Windows/Mac
 Thumbs.db
+~$*
 .DS_Store
+
+# bỏ qua folder config_agent
+config_Agent/

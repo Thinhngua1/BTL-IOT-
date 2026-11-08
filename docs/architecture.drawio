@@ -1,0 +1,123 @@
+<mxfile host="65bd71144e">
+    <diagram name="1-System" id="sys1">
+        <mxGraphModel dx="1038" dy="513" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="s_broker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="MQTT broker&#xa;(Mosquitto)" vertex="1">
+                    <mxGeometry height="60" width="140" x="280" y="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_hmi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="HMI (Trung)&#xa;= View of whole system&#xa;own MVVM - TBD" vertex="1">
+                    <mxGeometry height="60" width="160" x="520" y="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_esp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="ESP32 Gateway (Thinh + Cuong)&#xa;firmware organised as MVVM&#xa;(see page 2)" vertex="1">
+                    <mxGeometry height="70" width="200" x="250" y="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_plc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="PLC Xinje XD2-16T-E&#xa;Modbus Slave ID 2" vertex="1">
+                    <mxGeometry height="60" width="140" x="280" y="320" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_act" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Actuator&#xa;(Conveyor Y0, Light Y1)" vertex="1">
+                    <mxGeometry height="60" width="140" x="280" y="450" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_e1" edge="1" parent="1" source="s_esp" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="s_broker" value="MQTT : xinje/plc1/data, ack, status (up)&#xa;xinje/plc1/cmd (down)">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_e2" edge="1" parent="1" source="s_hmi" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="s_broker" value="MQTT (same topics)">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_e3" edge="1" parent="1" source="s_esp" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="s_plc" value="Modbus RTU / RS485 (A,B)&#xa;read D100,M100,D200 | write M0,M1,M10,D200">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="s_e4" edge="1" parent="1" source="s_plc" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="s_act" value="X0 / Y0 / Y1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram name="2-ESP32-MVVM" id="mvvm2">
+        <mxGraphModel dx="1094" dy="617" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="m_wire" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=middle;" value="main.cpp&#xa;(wiring only:&#xa;create, inject,&#xa;connect signals)" vertex="1">
+                    <mxGeometry height="430" width="80" x="20" y="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_bv" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;verticalAlign=top;align=left;spacingLeft=8;" value="VIEW (local debug console)" vertex="1">
+                    <mxGeometry height="90" width="800" x="120" y="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_bvm" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;verticalAlign=top;align=left;spacingLeft=8;" value="VIEWMODEL" vertex="1">
+                    <mxGeometry height="100" width="800" x="120" y="190" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_bms" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;verticalAlign=top;align=left;spacingLeft=8;" value="MODEL / SERVICE (bottom tier)" vertex="1">
+                    <mxGeometry height="110" width="800" x="120" y="310" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_serial_ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="Serial Monitor (USB, UART0)" vertex="1">
+                    <mxGeometry height="40" width="180" x="140" y="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_sv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="SerialView&#xa;Views/SerialView" vertex="1">
+                    <mxGeometry height="50" width="180" x="140" y="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_vm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="GatewayVM&#xa;ViewModels/GatewayVM&#xa;queue -&gt; poll -&gt; publish" vertex="1">
+                    <mxGeometry height="55" width="240" x="400" y="225" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_pm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="PlcModel&#xa;Models/PlcModel&#xa;PlcData + update() returns changed" vertex="1">
+                    <mxGeometry height="55" width="190" x="140" y="345" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_cmd" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="Command + CommandQueue&#xa;Models/Command" vertex="1">
+                    <mxGeometry height="55" width="170" x="350" y="345" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_ms" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="ModbusService&#xa;Services/ModbusService" vertex="1">
+                    <mxGeometry height="55" width="170" x="540" y="345" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_qs" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="MqttService&#xa;Services/MqttService&#xa;WiFi + MQTT + JSON codec" vertex="1">
+                    <mxGeometry height="55" width="170" x="730" y="345" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_plc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="PLC Xinje (RS485 A,B)" vertex="1">
+                    <mxGeometry height="40" width="170" x="540" y="460" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_brk" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="MQTT broker" vertex="1">
+                    <mxGeometry height="40" width="170" x="730" y="460" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_hmi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="HMI (Trung) = remote View" vertex="1">
+                    <mxGeometry height="40" width="170" x="730" y="540" as="geometry"/>
+                </mxCell>
+                <mxCell id="m_util" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;dashed=1;" value="Utils/Signal.h&#xa;Signal&lt;Args...&gt; connect / emit&#xa;Config.h, PlcMap.h, Secrets.h (gitignored)" vertex="1">
+                    <mxGeometry height="55" width="330" x="140" y="460" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" edge="1" parent="1" source="m_serial_ext" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="m_sv" value="USB serial">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" edge="1" parent="1" source="m_sv" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=classic;exitX=1;exitY=0.5;entryX=0.25;entryY=0;" target="m_vm" value="direct call: submit(Command)">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" edge="1" parent="1" source="m_vm" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=classic;strokeColor=#d6336c;exitX=0.1;exitY=0;entryX=0.5;entryY=1;" target="m_sv" value="SIGNAL: dataChanged / ackReady">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" edge="1" parent="1" source="m_vm" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=classic;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" target="m_ms" value="direct call: read/write">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" edge="1" parent="1" source="m_vm" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=classic;exitX=1;exitY=0.75;entryX=0.5;entryY=0;" target="m_qs" value="direct call: publishData / publishAck">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e6" edge="1" parent="1" source="m_qs" style="edgeStyle=orthogonalEdgeStyle;html=1;dashed=1;endArrow=classic;strokeColor=#d6336c;exitX=0.75;exitY=0;entryX=1;entryY=0.25;" target="m_vm" value="SIGNAL: commandReceived / connected">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e7" edge="1" parent="1" source="m_vm" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=classic;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" target="m_pm" value="direct call: update()">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e8" edge="1" parent="1" source="m_vm" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="m_cmd" value="direct call: push / pop">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e9" edge="1" parent="1" source="m_ms" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="m_plc" value="Modbus RTU">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e10" edge="1" parent="1" source="m_qs" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="m_brk" value="MQTT (WiFi)">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e11" edge="1" parent="1" source="m_brk" style="edgeStyle=orthogonalEdgeStyle;html=1;startArrow=classic;endArrow=classic;" target="m_hmi" value="MQTT">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

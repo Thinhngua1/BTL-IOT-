@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HMI - Giám sát băng chuyền</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif; background: #f1f5f9;
+      margin: 0; padding: 24px; color: #1e293b;
+    }
+    .container { max-width: 850px; margin: auto; }
+    h1 { text-align: center; }
+    .status, .card, .controls, .settings {
+      background: white; padding: 18px; margin: 14px 0;
+      border-radius: 12px; box-shadow: 0 2px 8px #00000012;
+    }
+    .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .number { font-size: 32px; font-weight: bold; margin-top: 10px; }
+    .label { color: #64748b; }
+    button {
+      padding: 11px 17px; margin: 5px 5px 5px 0; border: 0;
+      border-radius: 8px; cursor: pointer; color: white; font-size: 15px;
+    }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .start, .submit { background: #16a34a; }
+    .stop { background: #dc2626; }
+    .reset { background: #64748b; }
+    #connection { font-weight: bold; }
+    .fields { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    label { display: block; font-weight: 600; margin-bottom: 7px; }
+    input {
+      width: 100%; padding: 11px; border: 1px solid #cbd5e1;
+      border-radius: 8px; font-size: 16px;
+    }
+    .hint { color: #64748b; font-size: 13px; line-height: 1.5; }
+    #message { min-height: 22px; }
+    @media (max-width: 600px) {
+      body { padding: 12px; }
+      .cards, .fields { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>HMI - Giám sát băng chuyền</h1>
+
+    <div class="status">
+      Kết nối MQTT: <span id="connection">Đang kết nối...</span>
+      <p>Trạng thái máy: <strong id="machine">Chưa có dữ liệu</strong></p>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="label">Sản phẩm đã đếm</div>
+        <div class="number" id="count">0</div>
+      </div>
+      <div class="card">
+        <div class="label">Mục tiêu sản xuất</div>
+        <div class="number" id="target">0</div>
+      </div>
+    </div>
+
+    <div class="settings">
+      <h3>Cập nhật thông số sản xuất</h3>
+      <div class="fields">
+        <div>
+          <label for="targetInput">Mục tiêu sản xuất</label>
+          <input id="targetInput" type="number" min="1" step="1" placeholder="Ví dụ: 500">
+          <button class="submit" id="targetSubmit" type="button">Cập nhật mục tiêu</button>
+        </div>
+      </div>
+      <p class="hint">
+        Chỉ cập nhật mục tiêu sản xuất. Lệnh được gửi đến ESP32 qua MQTT với payload
+        {"command":"SET_TARGET","value":500}. ESP32 phải đăng ký topic xinje/plc1/cmd
+        và chuyển mục tiêu mới xuống PLC qua giao thức đang sử dụng.
+      </p>
+      <p id="message" aria-live="polite">Chưa gửi lệnh.</p>
+    </div>
+
+    <div class="controls">
+      <h3>Điều khiển băng chuyền</h3>
+      <button class="start" type="button" onclick="sendCommand('START')">START</button>
+      <button class="stop" type="button" onclick="sendCommand('STOP')">STOP</button>
+      <button class="reset" type="button" onclick="sendCommand('RESET')">RESET</button>
+    </div>
+  </div>
+
+  <script>
+    // Nếu mở HMI trên cùng máy tính chạy Mosquitto, dùng 127.0.0.1.
+    // Nếu mở HMI trên máy khác, thay bằng IP LAN của máy chạy Mosquitto.
+    const MQTT_URL = "ws://127.0.0.1:9001";
+    const DATA_TOPIC = "xinje/plc1/data";
+    const CMD_TOPIC = "xinje/plc1/cmd";
+
+    const connectionText = document.getElementById("connection");
+    const messageText = document.getElementById("message");
+    const targetInput = document.getElementById("targetInput");
+
+    if (typeof mqtt === "undefined") {
+      connectionText.textContent = "Không tải được thư viện MQTT.js";
+      connectionText.style.color = "red";
+      throw new Error("MQTT.js chưa được tải. Kiểm tra kết nối Internet/CDN.");
+    }
+
+    const client = mqtt.connect(MQTT_URL);
+
+    client.on("connect", function () {
+      connectionText.textContent = "Đã kết nối";
+      connectionText.style.color = "green";
+      console.log("1. Đã kết nối Mosquitto");
+
+      client.subscribe(DATA_TOPIC, function (err, granted) {
+        if (err) {
+          messageText.textContent = "Lỗi đăng ký Topic nhận dữ liệu.";
+          console.error("Lỗi đăng ký Topic:", err);
+          return;
+        }
+        console.log("2. Đã đăng ký Topic:", DATA_TOPIC, granted);
+      });
+    });
+
+    client.on("reconnect", function () {
+      connectionText.textContent = "Đang kết nối lại...";
+      connectionText.style.color = "orange";
+    });
+
+    client.on("close", function () {
+      connectionText.textContent = "Đã ngắt kết nối";
+      connectionText.style.color = "red";
+    });
+
+    client.on("error", function (err) {
+      connectionText.textContent = "Lỗi kết nối";
+      connectionText.style.color = "red";
+      console.error("MQTT error:", err);
+    });
+
+    client.on("message", function (topic, payload) {
+      console.log("3. Đã nhận tin:", topic, payload.toString());
+      if (topic !== DATA_TOPIC) return;
+
+      try {
+        const data = JSON.parse(payload.toString());
+
+        if (data.count !== undefined) {
+          document.getElementById("count").textContent = data.count;
+        }
+        if (data.target !== undefined) {
+          document.getElementById("target").textContent = data.target;
+          if (document.activeElement !== targetInput) targetInput.value = data.target;
+        }
+        if (data.running !== undefined) {
+          document.getElementById("machine").textContent =
+            data.running ? "Đang chạy" : "Đang dừng";
+        }
+      } catch (err) {
+        console.error("Lỗi đọc JSON:", err);
+        messageText.textContent = "Dữ liệu nhận được không phải JSON hợp lệ.";
+      }
+    });
+
+    function publishCommand(payload, successMessage) {
+      if (!client.connected) {
+        messageText.textContent = "Chưa kết nối Mosquitto. Chưa gửi được lệnh.";
+        return;
+      }
+      client.publish(CMD_TOPIC, JSON.stringify(payload), { qos: 0 }, function (err) {
+        if (err) {
+          messageText.textContent = "Gửi lệnh thất bại.";
+          console.error("Publish error:", err);
+        } else {
+          messageText.textContent = successMessage;
+          console.log("Đã gửi lệnh:", payload);
+        }
+      });
+    }
+
+    function sendCommand(command) {
+      publishCommand({ command: command }, "Đã gửi lệnh: " + command);
+    }
+
+    document.getElementById("targetSubmit").addEventListener("click", function () {
+      const value = Number(targetInput.value);
+      if (targetInput.value.trim() === "" || !Number.isInteger(value) || value <= 0) {
+        messageText.textContent = "Mục tiêu phải là số nguyên lớn hơn 0.";
+        targetInput.focus();
+        return;
+      }
+      publishCommand(
+        { command: "SET_TARGET", value: value },
+        "Đã gửi yêu cầu cập nhật mục tiêu: " + value
+      );
+    });
+  </script>
+</body>
+</html>
