@@ -1,0 +1,108 @@
+Đọc hiểu code
+Thịnh cần đọc: 
+
+patch_node.md (done)
+architecture.drawio(done)
+Sơ đồ đấu nối.docx(done)
+Readme.md(done)
+PLC.xdp(done)
+main.cpp
+Config.h(done)
+PlcMap.h(done)
+ModbusService.h(done)
+ModbusService.cpp(done)
+GatewayVM.h(done)
+GatewayVM.cpp(done)
+PlcModel.h(done)
+Command.h(done)
+Signal.h(done)
+SerialView.h(done)
+SerialView.cpp(done)
+PLC_ESP.cpp(done)
+modbus_test.py (bỏ)
+
+* Ghi chú:
+	trong các class, đoạn nào để trong public thì bên ngoài có thể truy cập trực tiếp qua obj.
+đoạn nào private thì ngược lại
+	
+	Kinh nghiệm giao tiếp MOdbus - nhúng.
+Khởi tạo obj uart-> tạo obj modbus master
+
+	gọi các class từ các file .h( giông như menu khi đi ăn nhà hàng)
+
+* đọc File: PLC_ESP(code test)
+
+setup(): khởi tạo UART/Modbus
+loop(): nhận lệnh Serial + đọc PLC định kỳ
+  ├─ handleSerialCommands(): a, s, p, r, t..., b...
+  ├─ autoScanPLC(): thử tìm baud/parity/ID
+  ├─ pulseCoil(): gửi xung Start/Stop/Reset
+  ├─ writeTargetD200(): ghi sản lượng mục tiêu
+  └─ pollPLCData(): đọc sản lượng và trạng thái
+
+cụ thể:
+
+ESP 32 vs PLC, thì ESP đang dùng lib modbus master.
+DÙng serial, serial đầu(uart0) để dùng serial monitor, serial 2(uart2) để giao tiếp modbus
+CHu kỳ đọc modbus: 1s
+
+Có vấn đề về settup. Giá trị ban đầu mặc định(baud, modbusConfig) khớp PLC nên bắt đc. nếu ko khớp thì phải nhập a trong serial mới bắt đc.-> nếu gói app ko có serial thù chịu chết
+
+
+- hàm autoScanPLC: đang ghép chức năng quét thông số modbus với việc đọc D100 1 lần(mặc dù ở chỗ khác dùng hàm đọc D100 mỗi lần). Khi đọc xong thì mới chốt giá trị của modbus trên esp. => ko tối ưu. tách ra chứ.Dùng hàm gì đó hay bắt tín hiệu trả về nếu begin modbus ko thành chẳng hạn
+
+
+code thừa
+ONBOARD_LED = 2 ko dùng tới tren esp 32 
+
+
+
+
+
+
+* ModbusService.cpp, ModbusService.h:
+2 thằng này phải xem cùng lúc PlcMap.h vì nó lấy plcdata dạng struct hay class
+
+hàm ModbusService::setBaudrate mục đích để đổi baud khi đã tồn tại serial.
+
+
+
+Nhánh modbus: đọc từ modbusService -> PLCmodel (OK)
+Nhánh gatewayVM
+
+- Chú ý GatewayVM::GatewayVM để gán đối tượng như lệnh, hàng đợi, modbus, MQTT
+- submitCommand gọi enqueue(hàm nạp lệnh) từ Command.h. 
+- changeBaudrate: Thay doi toc do truyen thong Modbus theo yeu cau cau hinh
+- executeCommand: con này thực hiện các lệnh từ UI. ghi các biến M, D vào PLC
+- tick: hàm quan trọng nhất, vòng chính của gatewayVM
+ 	B1: lấy  lệnh ra từ dequeue(Downstream: View/MQTT -> PLC) -> thực hiện lệnh và chạy MQTT( lưu ý mqtt_ ở GatewayVM khác ở MQTTservice, là PubSubClient trong file .h)
+	B2: xử lý Upstream (PLC -> Model) -> cập nhật tg polling cuối cùng. 
+	lấy data(hàm readAll trong modbuservice) từ PLC bằng chụp nhanh.
+	nhận diện thay đổi data trong update snapshot.
+	xuất tín hiệu chứa toàn bộ data ra view(serial view), wiring qua main
+	Kiểm tra có sự thay đổi data, trạng thái kết nối MQTT, thời gian -> publishData lên MQTT 1 lần rồi tiếp tục vòng sau
+
+* đọc file SerialView.cpp, SerialView.h
+	printBanner: đc gọi từ main, in ra serial ngay ban đầu
+	onDataChanged: đc main nối vs gatewayVM, luồng từ PLC-> snapshot-> emit ra -> SerialView
+	onAckReady: tương tự onDataChanged
+	pollInput: 
+		đọc chuỗi khi gặp xuống dòng, xử lý chuỗi(cắt chuỗi mặc định)
+		nếu độ dài = 0 thì out
+		khác 0 thì xử lý chuỗi(viết thường) rồi chạy submitCommand trong obj vm_(kiểu GatewayVM)
+		
+	
+* đọc file: main.cpp
+gọi các class: PlcModel, CommandQueue, ModbusService, MqttService, GatewayVM, SerialView từ các file .h( giông như menu khi đi ăn nhà hàng)
+
+
+1. Khởi tạo dịch vụ(modbus, mqtt)
+	begin dịch vụ mqtt, modbus 
+2. wiring Service đến viewmodel 
+	hàm nhận lệnh của mqtt service đấu tín hiệu với lambda nạp lệnh ( hàm nhanh) của gatewayVm 
+	hàm nhận biết trạng thái kết nối MQTT của mqtt service đấu tín hiệu với hàm trạng thái của gatewayVM
+3. wiring viewmodel -> view
+	Hàm thay đổi data của PLC của ViewModel(gatewayVM) nối hàm tương ứng ở view(serialView) 
+	Hàm thông báo phản hồi từ esp32 với mqtt của ViewModel(gatewayVM) nối hàm tương ứng ở view(serialView) 
+	(hàm này thực hiện sau phản hồi từ esp32 với mqtt trong gatewayVM: publishAck)
+	chạy hàm in trong view lên serial 

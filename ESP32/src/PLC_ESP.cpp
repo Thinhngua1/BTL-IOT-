@@ -262,7 +262,7 @@ void setup() {
 
 void loop() {
   handleSerialCommands();
-
+  // auxilarity
   unsigned long now = millis();
   if (now - lastPollTime >= POLL_INTERVAL_MS) {
     lastPollTime = now;
