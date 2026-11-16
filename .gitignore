@@ -14,5 +14,3 @@ Thumbs.db
 ~$*
 .DS_Store
 
-# bỏ qua folder config_agent
-config_Agent/
